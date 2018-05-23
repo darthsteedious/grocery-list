@@ -1,39 +1,44 @@
-from flask import request, jsonify
-from api import app, execute, GET, POST
 from queries.list import *
+from program import routes, web
 
 
-def list_index_get():
-    result = get_list()
+@routes.get('/api/list/')
+async def index_get(request):
+    result = await get_list()
     if result is None:
-        return jsonify(None), 200
+        return web.json_response(None, status=200)
 
     list_id, completed = result
 
     items_result = [{'id': list_id, 'name': name, 'description': description} for (list_id, name, description) in
-                    get_list_items(list_id)]
-    return jsonify({'id': list_id, 'completed': completed, 'items': items_result}), 200
+                    await get_list_items(list_id)]
+    return web.json_response({'id': list_id, 'completed': completed, 'items': items_result}, status=200)
 
 
-def list_index_post():
-    result = execute(insert_list)
+@routes.post('/api/list/')
+async def index_post(request):
+    result = await insert_list()
     if result is None:
-        return '', 204
+        return web.Response(status=204)
 
-    list_id, = result
-    print(list_id)
-    return jsonify(), 201, {'Location': '/api/list'}
-
-
-@app.route('/api/list', methods=[GET, POST])
-def index():
-    if request.method == 'GET':
-        return list_index_get()
-    else:
-        return list_index_post()
+    # list_id, = result
+    return web.json_response('', status=201, headers={'Location': '/api/list'})
 
 
-@app.route('/api/list/<int:list_id>/complete', methods=['PUT'])
-def update_list(list_id):
-    execute(set_list_complete, list_id)
-    return jsonify(''), 204
+@routes.put('/api/list/{list_id:\d+}')
+async def complete_list(request):
+    await set_list_complete(request.match_info['list_id'])
+    await insert_list()
+    return web.Response(status=204)
+
+
+@routes.post('/api/list/{list_id:\d+}/item')
+async def put_item(request):
+    result = await request.json()
+    list_id = request.match_info['list_id']
+    result = await put_list_item(list_id, result)
+    if result is None:
+        return web.Response(text='Item exists', status=400)
+
+    (item_id,) = result
+    return web.Response(status=201, headers={'Location': f'/api/list/{list_id}/item/{item_id}'})

@@ -1,2 +1,6 @@
 __pycache__/
 .idea/
+*.pem
+*.crt
+*.csr
+*.key
